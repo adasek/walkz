@@ -12,3 +12,19 @@ Originally a Prague Hackaton 2015 project focused on walk routes generating base
  * Currently development is focused on implementation of other algorithms that would be able to satisfy multiple constraints (time interval) and preferences as well as optionally generating paths with circles (when enough time is given) and giving the crunching some randomness.
  * Main advantage of this task is that there is no need to search for 100% optimal path – but as main criteria is (along with hard numbers) some kind of aestetic preferences it allows for lot of playful tunning of algorithm.
  * There would be possible to use some kind of precalculation.
+
+##Instalation
+Depends on NodeJS and its component for image manipulation.
+```bash
+ #NodeJS = interpreter
+`sudo apt-get install nodejs`
+
+ #Dependency used for rendering
+`sudo apt-get install graphicsmagick`
+
+ #package system for NodeJS
+`sudo apt-get install npm` 
+
+ #install graphicsmagick into nodejs**
+`sudo npm install gm`
+```
