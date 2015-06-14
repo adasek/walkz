@@ -16,15 +16,15 @@ Originally a Prague Hackaton 2015 project focused on walk routes generating base
 ##Instalation
 Depends on NodeJS and its component for image manipulation.
 ```bash
- #NodeJS = interpreter
-`sudo apt-get install nodejs`
+#NodeJS = interpreter
+sudo apt-get install nodejs
 
- #Dependency used for rendering
-`sudo apt-get install graphicsmagick`
+#Dependency used for rendering
+sudo apt-get install graphicsmagick
 
- #package system for NodeJS
-`sudo apt-get install npm` 
+#package system for NodeJS
+sudo apt-get install npm
 
- #install graphicsmagick into nodejs**
-`sudo npm install gm`
+#install graphicsmagick into nodejs**
+sudo npm install gm
 ```
