@@ -3,14 +3,17 @@
 	<!-- Original Source: http://wiki.openstreetmap.org/wiki/Openlayers_Track_example -->
 	<title>Simple OSM GPX Track</title>
 	<script src="http://www.openlayers.org/api/OpenLayers.js"></script>
-	<script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
- 
+    
 	<script type="text/javascript">
 		var map; //complex object of type OpenLayers.Map
  
 		function init() {
-		
+		      
      OpenLayers.ImgPath = "http://adasek.cz/osm/tiles/";
+
+     /* Top-left and Bottom-right points (correspond to rendered borders) */        
+     var tl=new OpenLayers.LonLat(14.27, 49.88);  
+     var br=new OpenLayers.LonLat(14.63, 50.17);
 
 			map = new OpenLayers.Map ("map", {
 				controls:[
@@ -18,10 +21,13 @@
 					new OpenLayers.Control.PanZoomBar(),
 					new OpenLayers.Control.LayerSwitcher(),
 					new OpenLayers.Control.Attribution()],
-				maxExtent: new OpenLayers.Bounds(-20037508.34,-20037508.34,20037508.34,20037508.34),
-				maxResolution: 156543.0399,
-				numZoomLevels: 19,
-				units: 'm',
+					
+			restrictedExtent: new OpenLayers.Bounds(
+        tl.clone().transform(new OpenLayers.Projection("EPSG:4326"), new OpenLayers.Projection("EPSG:900913")).lon,  
+        tl.clone().transform(new OpenLayers.Projection("EPSG:4326"), new OpenLayers.Projection("EPSG:900913")).lat,  
+        br.clone().transform(new OpenLayers.Projection("EPSG:4326"), new OpenLayers.Projection("EPSG:900913")).lon,
+        br.clone().transform(new OpenLayers.Projection("EPSG:4326"), new OpenLayers.Projection("EPSG:900913")).lat
+        ), 
 				projection: new OpenLayers.Projection("EPSG:900913"),
 				displayProjection: new OpenLayers.Projection("EPSG:4326")
 			} );
