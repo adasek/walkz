@@ -1,0 +1,79 @@
+<html>
+<head>
+	<!-- Original Source: http://wiki.openstreetmap.org/wiki/Openlayers_Track_example -->
+	<title>Simple OSM GPX Track</title>
+	<script src="http://www.openlayers.org/api/OpenLayers.js"></script>
+	<script src="http://www.openstreetmap.org/openlayers/OpenStreetMap.js"></script>
+ 
+	<script type="text/javascript">
+		var map; //complex object of type OpenLayers.Map
+ 
+		function init() {
+		
+     OpenLayers.ImgPath = "http://adasek.cz/osm/tiles/";
+
+			map = new OpenLayers.Map ("map", {
+				controls:[
+					new OpenLayers.Control.Navigation(),
+					new OpenLayers.Control.PanZoomBar(),
+					new OpenLayers.Control.LayerSwitcher(),
+					new OpenLayers.Control.Attribution()],
+				maxExtent: new OpenLayers.Bounds(-20037508.34,-20037508.34,20037508.34,20037508.34),
+				maxResolution: 156543.0399,
+				numZoomLevels: 19,
+				units: 'm',
+				projection: new OpenLayers.Projection("EPSG:900913"),
+				displayProjection: new OpenLayers.Projection("EPSG:4326")
+			} );
+ 
+        
+      var newLayer = new OpenLayers.Layer.OSM("Local Tiles", "http://adasek.cz/osm/tiles/${z}/${x}/${y}.png", {numZoomLevels: 19, alpha: true, isBaseLayer: true});
+      map.addLayer(newLayer);
+      
+              
+			// Add the GPX Tracks
+			walks=new Array([],[],[],[],[]);
+			walks[0].file="test_gpx/20150621-223525.gpx";
+			walks[0].name="Walk1";                     
+			walks[0].color="#ff0000";     
+			walks[1].file="test_gpx/20150622-132906.gpx";
+			walks[1].name="Walk2";                
+			walks[1].color="#ffaa00";      
+			walks[2].file="test_gpx/20150623-144336.gpx";
+			walks[2].name="Walk4";               
+			walks[2].color="#aa00ff";       
+			walks[3].file="test_gpx/20150623-163221.gpx";
+			walks[3].name="Walk5";               
+			walks[3].color="#0000ff";      
+			walks[4].file="test_gpx/20150629-221247.gpx";
+			walks[4].name="Walk6";               
+			walks[4].color="#00ff00";    
+			
+		  for(i=0;i<walks.length;i++){
+  			var lgpx = new OpenLayers.Layer.Vector(walks[i].name, {
+  				strategies: [new OpenLayers.Strategy.Fixed()],
+  				protocol: new OpenLayers.Protocol.HTTP({
+  					url: walks[i].file,
+  					format: new OpenLayers.Format.GPX()
+  				}),
+  				style: {strokeColor: walks[i].color, strokeWidth: 5, strokeOpacity: 0.5},
+  				projection: new OpenLayers.Projection("EPSG:4326")
+  			});
+  			map.addLayer(lgpx);
+			}
+ 
+			// Start position for the map (hardcoded here for simplicity,
+			// but maybe you want to get this from the URL params)
+			var lat=50.09083;
+			var lon=14.32301;
+			var zoom=16;
+			var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
+			map.setCenter(lonLat, zoom);
+		}
+	</script>
+ 
+</head>
+<body onload="init();">
+	<div style="width:90%; height:90%" id="map"></div>
+</body>
+</html>
