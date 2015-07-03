@@ -1,81 +1,97 @@
 <html>
 <head>
-	<!-- Original Source: http://wiki.openstreetmap.org/wiki/Openlayers_Track_example -->
 	<title>Simple OSM GPX Track</title>
-	<script src="http://www.openlayers.org/api/OpenLayers.js"></script>
-    
+ <link rel="stylesheet" src="ol.css">
+ <script src="ol-debug.js"></script>
+ 
 	<script type="text/javascript">
-		var map; //complex object of type OpenLayers.Map
- 
-		function init() {
-		      
-     OpenLayers.ImgPath = "http://adasek.cz/osm/tiles/";
+		     
+function init(){
 
-     /* Top-left and Bottom-right points (correspond to rendered borders) */        
-     var tl=new OpenLayers.LonLat(14.27, 49.88);  
-     var br=new OpenLayers.LonLat(14.63, 50.17);
-
-			map = new OpenLayers.Map ("map", {
-				controls:[
-					new OpenLayers.Control.Navigation(),
-					new OpenLayers.Control.PanZoomBar(),
-					new OpenLayers.Control.LayerSwitcher(),
-					new OpenLayers.Control.Attribution()],
-					
-			restrictedExtent: new OpenLayers.Bounds(
-        tl.clone().transform(new OpenLayers.Projection("EPSG:4326"), new OpenLayers.Projection("EPSG:900913")).lon,  
-        tl.clone().transform(new OpenLayers.Projection("EPSG:4326"), new OpenLayers.Projection("EPSG:900913")).lat,  
-        br.clone().transform(new OpenLayers.Projection("EPSG:4326"), new OpenLayers.Projection("EPSG:900913")).lon,
-        br.clone().transform(new OpenLayers.Projection("EPSG:4326"), new OpenLayers.Projection("EPSG:900913")).lat
-        ), 
-				projection: new OpenLayers.Projection("EPSG:900913"),
-				displayProjection: new OpenLayers.Projection("EPSG:4326")
-			} );
- 
-        
-      var newLayer = new OpenLayers.Layer.OSM("Local Tiles", "http://adasek.cz/osm/tiles/${z}/${x}/${y}.png", {numZoomLevels: 19, alpha: true, isBaseLayer: true});
-      map.addLayer(newLayer);
+  var projection = ol.proj.get('EPSG:900913');
+  
+  var projExtent = projection.getExtent();
+  var startResolution = ol.extent.getWidth(projExtent) / 256;
+  var resolutions = new Array(22);
+  for (var i = 0, ii = resolutions.length; i < ii; ++i) {
+    resolutions[i] = startResolution / Math.pow(2, i);
+  }
+  
+  /*
+  var tileGrid = new ol.tilegrid.TileGrid({
+    extent: [14.27, 49.88, 14.63, 50.17],
+    resolutions: resolutions,
+    tileSize: [512, 256]
+  });
+  */
+           
+     var tl=ol.proj.transform([14.224090, 49.941601], 'EPSG:4326', 'EPSG:900913');  
+     var br=ol.proj.transform([14.706750, 50.177650], 'EPSG:4326', 'EPSG:900913');
+     
+  var raster = new ol.layer.Tile({
+      source: new ol.source.OSM({
+        url: "http://adasek.cz/osm/tiles/{z}/{x}/{y}.png",
+        params: {}, 
+        crossOrigin: null
+      })
+  });
+  
+  /*
+  var style = {
+    'Point': [new ol.style.Style({
+      image: new ol.style.Circle({
+        fill: new ol.style.Fill({
+          color: 'rgba(255,255,0,0.4)'
+        }),
+        radius: 5,
+        stroke: new ol.style.Stroke({
+          color: '#ff0',
+          width: 1
+        })
+      })
+    })],
+    'LineString': [new ol.style.Style({
+      stroke: new ol.style.Stroke({
+        color: '#f00',
+        width: 3
+      })
+    })],
+    'MultiLineString': [new ol.style.Style({
+      stroke: new ol.style.Stroke({
+        color: '#0f0',
+        width: 3
+      })
+    })]
+  };
+  */
+      /*
+  var vector = new ol.layer.Vector({
+    source: new ol.source.Vector({
+      url: 'data/gpx/fells_loop.gpx',
+      format: new ol.format.GPX()
+    }),
+    style: function(feature, resolution) {
+      return style[feature.getGeometry().getType()];
+    }
+  });
+  */
+  
+  var map = new ol.Map({
+    layers: [raster],
+    target: document.getElementById('map'),
+    view: new ol.View({
+      center: ol.proj.transform([14.32301,50.09083], 'EPSG:4326', 'EPSG:3857'),
+      extent: [tl[0], tl[1], br[0], br[1]],
+      zoom:15,
+      minZoom:12,
+      maxZoom:19
+    })
+  });
       
-              
-			// Add the GPX Tracks
-			walks=new Array([],[],[],[],[]);
-			walks[0].file="test_gpx/20150621-223525.gpx";
-			walks[0].name="Walk1";                     
-			walks[0].color="#ff0000";     
-			walks[1].file="test_gpx/20150622-132906.gpx";
-			walks[1].name="Walk2";                
-			walks[1].color="#ffaa00";      
-			walks[2].file="test_gpx/20150623-144336.gpx";
-			walks[2].name="Walk4";               
-			walks[2].color="#aa00ff";       
-			walks[3].file="test_gpx/20150623-163221.gpx";
-			walks[3].name="Walk5";               
-			walks[3].color="#0000ff";      
-			walks[4].file="test_gpx/20150629-221247.gpx";
-			walks[4].name="Walk6";               
-			walks[4].color="#00ff00";    
-			
-		  for(i=0;i<walks.length;i++){
-  			var lgpx = new OpenLayers.Layer.Vector(walks[i].name, {
-  				strategies: [new OpenLayers.Strategy.Fixed()],
-  				protocol: new OpenLayers.Protocol.HTTP({
-  					url: walks[i].file,
-  					format: new OpenLayers.Format.GPX()
-  				}),
-  				style: {strokeColor: walks[i].color, strokeWidth: 5, strokeOpacity: 0.5},
-  				projection: new OpenLayers.Projection("EPSG:4326")
-  			});
-  			map.addLayer(lgpx);
-			}
- 
-			// Start position for the map (hardcoded here for simplicity,
-			// but maybe you want to get this from the URL params)
-			var lat=50.09083;
-			var lon=14.32301;
-			var zoom=16;
-			var lonLat = new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject());
-			map.setCenter(lonLat, zoom);
-		}
+}   
+    
+    
+    
 	</script>
  
 </head>
