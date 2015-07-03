@@ -36,48 +36,45 @@ function init(){
       })
   });
   
-  /*
-  var style = {
-    'Point': [new ol.style.Style({
-      image: new ol.style.Circle({
-        fill: new ol.style.Fill({
-          color: 'rgba(255,255,0,0.4)'
-        }),
-        radius: 5,
-        stroke: new ol.style.Stroke({
-          color: '#ff0',
-          width: 1
-        })
-      })
-    })],
-    'LineString': [new ol.style.Style({
-      stroke: new ol.style.Stroke({
-        color: '#f00',
-        width: 3
-      })
-    })],
-    'MultiLineString': [new ol.style.Style({
-      stroke: new ol.style.Stroke({
-        color: '#0f0',
-        width: 3
-      })
-    })]
-  };
-  */
-      /*
-  var vector = new ol.layer.Vector({
-    source: new ol.source.Vector({
-      url: 'data/gpx/fells_loop.gpx',
-      format: new ol.format.GPX()
-    }),
-    style: function(feature, resolution) {
-      return style[feature.getGeometry().getType()];
-    }
-  });
-  */
+  
+          // Add the GPX Tracks
+			walks=new Array([],[],[],[],[]);
+			walks[0].file="test_gpx/20150621-223525.gpx";
+			walks[0].name="Walk1";                     
+			walks[0].color="#880000";     
+			walks[1].file="test_gpx/20150622-132906.gpx";
+			walks[1].name="Walk2";                
+			walks[1].color="#886600";      
+			walks[2].file="test_gpx/20150623-144336.gpx";
+			walks[2].name="Walk4";               
+			walks[2].color="#660088";       
+			walks[3].file="test_gpx/20150623-163221.gpx";
+			walks[3].name="Walk5";               
+			walks[3].color="#000088";      
+			walks[4].file="test_gpx/20150629-221247.gpx";
+			walks[4].name="Walk6";               
+			walks[4].color="#008800";    
+			
+			var layersArray=new Array(raster);
+			
+		  for(i=0;i<walks.length;i++){
+        var vector = new ol.layer.Vector({
+          source: new ol.source.Vector({
+            url: walks[i].file,
+            format: new ol.format.GPX()
+          }),
+          style: new ol.style.Style({
+            stroke: new ol.style.Stroke({
+              color: walks[i].color,
+              width: 3})
+              })
+        });
+        layersArray[layersArray.length]=vector; //add this path as one layer
+			}
+ 
   
   var map = new ol.Map({
-    layers: [raster],
+    layers: layersArray,
     target: document.getElementById('map'),
     view: new ol.View({
       center: ol.proj.transform([14.32301,50.09083], 'EPSG:4326', 'EPSG:3857'),
