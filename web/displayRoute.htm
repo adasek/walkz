@@ -2,13 +2,61 @@
 <html>
 <head>
 	<title>Simple OSM GPX Track</title>
-	
- <link rel="stylesheet" href="ol.css" type="text/css">
- <script src="ol-debug.js" ></script>
+	                 
+ <link rel="stylesheet" href="lib/openlayers/ol.css" type="text/css">
+             
+ <script src="lib/jquery/jquery-2.1.4.min.js" ></script>     
+ <script src="lib/openlayers/ol.js" ></script>            
+ <script src="lib/date.format/date.format.js" ></script>   
+<script src="http://adasek.cz/ameas_old/d3/d3.min.js"></script>
+     
+
+ <style type="text/css">
+  #popup > div {
+     background-color:white;
+     padding:0.5em;
+     border-radius:1em;
+     position:relative;
+     top:2em;
+     margin:0;
+     border:2px solid black;
+     }  
+     
+     
+  #popup > div h3 {
+  margin:0;
+  }
+  #popup svg {height:50px;width:100%;border:1px solid black}
+     
+#trackList {
+  max-height:70vh;
+  overflow-y:auto;
+  overflow-x:hidden;
+  width:15em;
+}
+#trackList li {
+    white-space: nowrap;
+}
+     
+ul.layer-list {
+  top: 65px;
+  left: .5em;
+  list-style-type:none;
+}
+.ol-touch .layer-list {
+  top: 80px;
+}
+
+ </style>
     
 
 	<script type="text/javascript">
-		     
+		/* <![CDATA[ */ 
+var map;  
+var tracks; //gpx tracks 
+var coordinate; //coordinate of last click
+var popup; //INFO about track
+        
 function init(){
 
   var projection = ol.proj.get('EPSG:900913');
@@ -25,7 +73,7 @@ function init(){
      var tl=ol.proj.transform([14.224090, 49.941601], 'EPSG:4326', 'EPSG:900913');  
      var br=ol.proj.transform([14.706750, 50.177650], 'EPSG:4326', 'EPSG:900913');
      
-  var raster = new ol.layer.Tile({
+    var raster = new ol.layer.Tile({
       source: new ol.source.OSM({
         url: "http://adasek.cz/osm/tiles/{z}/{x}/{y}.png",
         params: {}
@@ -33,47 +81,15 @@ function init(){
   });
   
   
-          // Add the GPX Tracks
-			walks=new Array([],[],[],[],[]);
-			walks[0].file="test_gpx/20150621-223525.gpx";
-			walks[0].name="Walk1";                     
-			walks[0].color="#880000";     
-			walks[1].file="test_gpx/20150622-132906.gpx";
-			walks[1].name="Walk2";                
-			walks[1].color="#886600";      
-			walks[2].file="test_gpx/20150623-144336.gpx";
-			walks[2].name="Walk4";               
-			walks[2].color="#660088";       
-			walks[3].file="test_gpx/20150623-163221.gpx";
-			walks[3].name="Walk5";               
-			walks[3].color="#000088";      
-			walks[4].file="test_gpx/20150629-221247.gpx";
-			walks[4].name="Walk6";               
-			walks[4].color="#008800";    
-			
-			var layersArray=new Array(raster);
-			
-		  for(i=0;i<walks.length;i++){
-        var vector = new ol.layer.Vector({
-          source: new ol.source.Vector({
-            url: walks[i].file,
-            format: new ol.format.GPX()
-          }),
-          style: new ol.style.Style({
-            stroke: new ol.style.Stroke({
-              color: walks[i].color,
-              width: 3})
-              })
-        });
-        layersArray[layersArray.length]=vector; //add this path as one layer
-			}
- 
+          
+
+
              
 var attribution = new ol.control.Attribution({
   collapsible: false
 });
 
-  var map = new ol.Map({
+  map = new ol.Map({
   
     controls: ol.control.defaults({
        attributionOptions: ({
@@ -83,7 +99,7 @@ var attribution = new ol.control.Attribution({
     new ol.control.FullScreen()
   ]),
   
-    layers: layersArray,
+    layers: [raster],
     target: 'map',
     
     view: new ol.View({
@@ -96,24 +112,227 @@ var attribution = new ol.control.Attribution({
     
     
   });
+  
      
-      
+
+  /* http://openlayers.org/en/master/examples/popup.html */
+  popup = new ol.Overlay({
+        element: document.getElementById('popup'),
+        position: ol.proj.fromLonLat([14.32301,50.09083]),
+        positioning: "top-center" 
+      }); 
+  map.addOverlay(popup);                 
+  var layerList;    
+
+  map.on('click', function(evt) {
+    coordinate = evt.coordinate;
+    var hdms = ol.coordinate.toStringHDMS(ol.proj.transform(
+        coordinate, 'EPSG:3857', 'EPSG:4326'));
+  });                 
+             
+             
+/* Handler to have proper info */
+function handleMapClick(e)
+{
+ msgPlace = e.pixel;
 }   
-    
-    
-    
+map.on('click',  handleMapClick, map);
+map.on('singleclick',showTrackDetails);
+
+} 
+  
+  /* Show details about selected track */
+  /* will be connected to ol.MapBrowserEvent later. */               
+  function showTrackDetails(e) {
+    map.forEachFeatureAtPixel(e.pixel, function (feature, layer) {
+      coordinates=feature.getGeometry().getCoordinates();
+       //time-elevation:
+                         
+         
+      popup.get("element").innerHTML="<div><svg id=\"plot\"></svg><h2>"+
+                  layer.track.startDay +
+                  layer.track.title+"</h2>"+
+                  "<div>"+layer.track.description+"</div>"+     
+                  "<div class=\"up_down\">&#8599;"+Math.round(layer.track.upElevation)+"m &#8600;"+Math.round(layer.track.downElevation)+"m</div>"+
+                  "<div class=\"distance\">"+Math.round(layer.track.distance)+"m "+Math.round(layer.track.timeElapsed/60)+"min</div></div>";
+      
+      //http://stackoverflow.com/questions/21639305/d3js-take-data-from-an-array-instead-of-a-file
+     
+      width=100;
+      height=50;
+      var svg = d3.select("#plot");
+       
+   
+          
+          // Set the ranges                       
+          var     x = d3.time.scale().range([0, width]);
+          var     y = d3.scale.linear().range([height, 0]);
+          
+          // Define the axes
+          var     xAxis = d3.svg.axis().scale(x)
+                  .orient("bottom").ticks(5)
+            .tickFormat(d3.time.format("%d.%m. %H:%M"));
+          
+          var     yAxis = d3.svg.axis().scale(y)
+                  .orient("left").ticks(5);
+          
+          // Define the line
+          /*
+          var     valueline = d3.svg.line()
+                  .x(function(d) { return x(d.time); })
+                  .y(function(d) { return y(d.ele); });
+                   */ 
+           // http://bl.ocks.org/d3noob/b3ff6ae1c120eea654b5 
+           // http://stackoverflow.com/questions/21639305/d3js-take-data-from-an-array-instead-of-a-file      
+                  
+        x.domain(d3.extent(coordinates, function(d) { return d[3];  }));
+        y.domain([0, d3.max(coordinates, function(d) { return d[2]; })]);
+          /*  */
+           
+    });
+  }
+  
+                    
+$( document ).ready(function() {
+
+$.ajax({
+  dataType: "json",
+  url: "../cache/metadata.json",
+  data: {},
+  success: function( response ) {
+  tracks=response.tracks; 
+  
+      
+     for(i=0;i<tracks.length;i++){  
+      /* Create layer */
+      
+      var vectorSource= new ol.source.Vector({
+                url: tracks[i].file,
+                format: new ol.format.GPX()
+              });
+              
+      var vector = new ol.layer.Vector({
+              source: vectorSource,
+              style: new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                  color: tracks[i].color,
+                  width: 3})
+                  })  
+            });                                                                                               
+        vector.trackID=i; 
+        vector.track=tracks[i]; 
+        tracks[i].layer=vector;
+        
+        time=new Date(tracks[i].timeStart);
+        tracks[i].startDay=time.format("y-m-d");
+            
+        map.addLayer(vector);   
+       }  
+       
+               
+                     
+      var select = new ol.interaction.Select(); /* {"layers":[vector]} */      
+            
+       /* POPUP on SELECT */
+       select.on('select', function(e){   
+           e.selected.forEach(function(el,ind,ar){
+           })
+         popup.setPosition(coordinate); 
+         if(e.target.getFeatures().getLength()>0){
+          //popup.get("element").innerHTML="AAAA";
+         }else{ 
+          popup.get("element").innerHTML="";
+         }
+       
+       })
+         
+       select.on('deselect', function(e){
+          popup.get("element").innerHTML="";
+       });
+      map.addInteraction(select); 
+       
+     /* Show popup with list of just loaded layers */
+     
+        layerListControl = function(opt_options) {
+          var options = opt_options || {};
+                
+          var this_ = this;
+          var handleRotateNorth = function(e) {
+            this_.getMap().getView().setRotation(0);
+          };
+        
+                                       
+          var element = document.createElement('ul');
+          element.className = 'layer-list ol-unselectable ol-control';
+          element.setAttribute('id','trackList');
+           for(i=0;i<tracks.length;i++){   
+            var tLi = document.createElement('li');   
+              tCh=document.createElement('input');  
+              tCh.type="checkbox"; 
+              tCh.setAttribute('data-id',i);
+              tCh.checked=tracks[i].layer.getVisible(); 
+              tCh.setAttribute('id','tChechkbox_'+i);
+                                            
+                
+              tCh.addEventListener('change', function(){
+               /* checkbox changed */
+                layerID=this.getAttribute('data-id');
+                
+                if(this.checked){
+                 tracks[layerID].layer.setVisible(true);
+                }else{        
+                 tracks[layerID].layer.setVisible(false);
+                }
+               
+              }, false)
+            tLi.style.color=tracks[i].color;
+            tLi.appendChild(tCh);
+              tLabel = document.createElement('label');   
+              tLabel.setAttribute('for','tChechkbox_'+i);
+              tLabel.appendChild(document.createTextNode(tracks[i].startDay+" "+tracks[i].title));
+            tLi.appendChild(tLabel);
+            element.appendChild(tLi);
+            
+           }          
+           
+          
+          ol.control.Control.call(this, {
+            element: element,
+            target: options.target
+          });
+        
+        }; 
+      ol.inherits(layerListControl, ol.control.Control);
+      map.addControl(new layerListControl());                 
+          
+     
+            
+    },
+  error: function(ts) { alert(ts.responseText) }
+  });
+   
+   
+   
+});
+        
+		/*  ]]> */
 	</script>
  
 </head>
-<body onload="init();">
-<div class="container-fluid">
-
+<body onload="init();">    
+<div class="container-fluid"> 
+                         
 <div class="row-fluid">
   <div class="span12">
-    <div id="map" class="map"></div>
-  </div>
+    <div id="map" class="map"></div>  
 </div>
 
+</div>
+
+ 
+  <div style="display: none;">
+    <div class="overlay" id="popup"></div>  
+  </div>      
 </div>
 </body>
 </html>
