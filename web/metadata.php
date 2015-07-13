@@ -1,4 +1,17 @@
 <?php
+/* 
+metadata.php 
+Script that scans track records in gpx/ directory,
+and creates metadata JSON.
+Metadata of each track is stored in .cache file named by md5 sum =
+ = when file is changed, cache file is rebuilt.
+All metadata of existing files are then aggreged into "metadata.json".
+That is the file used by displayRoute application.
+
+Currently filenames in this script have absolute path, BEWARE!
+
+*/
+
 header("Content-Type: application/json");
 
 ob_start(null);
