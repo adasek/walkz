@@ -8,7 +8,8 @@
  <script src="lib/jquery/jquery-2.1.4.min.js" ></script>     
  <script src="lib/openlayers/ol.js" ></script>            
  <script src="lib/date.format/date.format.js" ></script>   
-<script src="http://adasek.cz/ameas_old/d3/d3.min.js"></script>
+ <script src="http://adasek.cz/ameas_old/d3/d3.min.js"></script>      
+ <script src="lib/jtps/jtps.js" ></script>   
      
 
  <style type="text/css">
@@ -28,7 +29,7 @@
   }
   #popup svg {height:50px;width:100%;border:1px solid black}
      
-#trackList {
+.trackList {
   max-height:70vh;
   overflow-y:auto;
   overflow-x:hidden;
@@ -38,12 +39,12 @@
     white-space: nowrap;
 }
      
-ul.layer-list {
+.trackList {    
   top: 65px;
   left: .5em;
   list-style-type:none;
 }
-.ol-touch .layer-list {
+.ol-touch .trackList {
   top: 80px;
 }
 
@@ -73,10 +74,23 @@ function init(){
      var tl=ol.proj.transform([14.224090, 49.941601], 'EPSG:4326', 'EPSG:900913');  
      var br=ol.proj.transform([14.706750, 50.177650], 'EPSG:4326', 'EPSG:900913');
      
-    var raster = new ol.layer.Tile({
+  var layers=new Array();
+  
+  /* My server OSM layer */
+  layers[0] = new ol.layer.Tile({
       source: new ol.source.OSM({
-        url: "http://adasek.cz/osm/tiles/{z}/{x}/{y}.png",
-        params: {}
+        url: "http://adasek.cz/osm/tiles/{z}/{x}/{y}.png",  
+        params: {},
+        name: "OSM tiles from our server"
+        
+      })
+  }); 
+  
+  /* default OSM layer */
+  layers[1] = new ol.layer.Tile({
+      source: new ol.source.OSM({
+        params: {},
+        name: "OSM tiles from public server"
       })
   });
   
@@ -99,12 +113,12 @@ var attribution = new ol.control.Attribution({
     new ol.control.FullScreen()
   ]),
   
-    layers: [raster],
+    layers: [layers[0]],
     target: 'map',
     
     view: new ol.View({
       center: ol.proj.transform([14.32301,50.09083], 'EPSG:4326', 'EPSG:3857'),
-      extent: [tl[0], tl[1], br[0], br[1]],
+      extent: [tl[0], tl[1], br[0], br[1]], 
       zoom:15,
       minZoom:12,
       maxZoom:19
@@ -260,19 +274,20 @@ $.ajax({
           var handleRotateNorth = function(e) {
             this_.getMap().getView().setRotation(0);
           };
-        
-                                       
-          var element = document.createElement('ul');
-          element.className = 'layer-list ol-unselectable ol-control';
-          element.setAttribute('id','trackList');
+                          
+          var element = document.createElement('div');    
+          element.className = 'trackList ol-unselectable ol-control';
+          element.setAttribute('id','trackList'); 
+          var tableElement = document.createElement('table');      
+          tableElement.className='trackList'; 
            for(i=0;i<tracks.length;i++){   
-            var tLi = document.createElement('li');   
+            var tTr = document.createElement('tr');  
+              tTd=document.createElement('td'); 
               tCh=document.createElement('input');  
               tCh.type="checkbox"; 
               tCh.setAttribute('data-id',i);
               tCh.checked=tracks[i].layer.getVisible(); 
               tCh.setAttribute('id','tChechkbox_'+i);
-                                            
                 
               tCh.addEventListener('change', function(){
                /* checkbox changed */
@@ -284,17 +299,23 @@ $.ajax({
                  tracks[layerID].layer.setVisible(false);
                 }
                
-              }, false)
-            tLi.style.color=tracks[i].color;
-            tLi.appendChild(tCh);
+              }, false);
+              tTd.style.color=tracks[i].color;
+              tTd.appendChild(tCh);
+             tTr.appendChild(tTd);
+             
+            tTd=document.createElement('td');  
               tLabel = document.createElement('label');   
               tLabel.setAttribute('for','tChechkbox_'+i);
               tLabel.appendChild(document.createTextNode(tracks[i].startDay+" "+tracks[i].title));
-            tLi.appendChild(tLabel);
-            element.appendChild(tLi);
+            tTd.appendChild(tLabel);
+            tTr.appendChild(tTd);
             
-           }          
+            tableElement.appendChild(tTr);
+           }
+            element.appendChild(tableElement);          
            
+           //console.log(element);
           
           ol.control.Control.call(this, {
             element: element,
