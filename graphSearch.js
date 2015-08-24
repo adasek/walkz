@@ -26,6 +26,8 @@ function Edge(properties){
    this.A=properties.A;
    this.B=properties.B;
    this.euclideanLength=Math.sqrt(Math.pow(A.x-A.y,2)+Math.pow(B.x-B.y,2));
+   this.id=properties.idn;
+        //console.log(properties);
 
    ///returns road as array of points (just coordinates in array, x,y - e.g.[ [50,30], [51,32] ]
    /**
@@ -60,6 +62,7 @@ function Vertex(properties){
   this.num=0;
   this.roads=[];
   this.edges=[];
+  this.color=0;
 
    this.addEdge = function(e){
 		if(undefined!=e && e!=null){
@@ -202,8 +205,8 @@ function Graph () {
 
     //private
     this.addEdge = function(A,B,properties){
-	
-	e=new Edge({"A":A,"B":B,"time":properties.min,"quality":properties.kvalita});	
+        
+	e=new Edge({"A":A,"B":B,"time":properties.min,"quality":properties.kvalita,"idn":this.edges.length});	
 	A.addEdge(e);
 	B.addEdge(e);
 	this.edges[this.edges.length]=e;
@@ -300,11 +303,8 @@ function Graph () {
    return ret;    
    };
 
-
-
-   ///Render as an png file
-   this.render = function(x,y,addPath,addNodes,filename){
-   image=gm('template.png');
+  this.renderBase = function(x,y){
+               image=gm('template.png');
 //process.stdout.write("a:"+this.nodes.length + ", " + this.nodes[0].edges.length +" ... \n");
 	 image.fill("#00aa00");
 	for(ii=0;ii<this.nodes.length;ii++){
@@ -324,9 +324,16 @@ function Graph () {
 	}
 	 image.fill("#ff0000",5);
 	 image.stroke("#ff0000",5);
-process.stdout.write("RENDERING");
+         return image;
+  }
+
+   ///Render as an png file
+   this.render = function(x,y,addPath,addNodes,filename){
+
+         image=this.renderBase(x,y);
+//process.stdout.write("RENDERING");
 //console.log(addPath);
-process.stdout.write("\n");
+//process.stdout.write("\n");
 	for(pin=1;pin<addPath.length;pin++){
 	    image.drawLine(
 			x * (addPath[pin-1][0] - this.minX)/(this.maxX - this.minX),
@@ -346,6 +353,36 @@ process.stdout.write("\n");
 	}
 
 
+	image.write(filename, function (err) {
+	  if (err) console.log(err);	
+	});
+   }
+   
+   
+   ///Render as an png file
+   this.renderColorizedNodes = function(x,y,filename){
+    image=this.renderBase(x,y);
+   addPath=new Array();
+   addNodes=new Array();
+    for(var i=0;i<this.nodes.length;i++){
+        if(this.nodes[i].color===1){
+            addNodes[addNodes.length]=i;
+        }
+    }
+    for(var n=0;n<this.edges.length;n++){
+        if(this.edges[n].A.color===1 && this.edges[n].B.color===1){
+           addPath[addPath.length]=new Array(this.edges[n].A.x,this.edges[n].A.y);
+           addPath[addPath.length]=new Array(this.edges[n].B.x,this.edges[n].B.y);
+           /* Render this path */
+           
+	    image.drawLine(
+			x * (this.edges[n].B.x - this.minX)/(this.maxX - this.minX),
+			y * (this.edges[n].B.y - this.minY)/(this.maxY - this.minY),
+			x * (this.edges[n].A.x - this.minX)/(this.maxX - this.minX),
+			y * (this.edges[n].A.y - this.minY)/(this.maxY - this.minY));
+        }
+    }
+    
 	image.write(filename, function (err) {
 	  if (err) console.log(err);	
 	});
@@ -483,8 +520,122 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
       return path;
 }
   
+  
+    this.paintNodes = function(nodeIndexes) {
+        for(var i=0;i<this.nodes.length;i++){
+            this.nodes[i].color=0;
+        }
+        for(var n=0;n<nodeIndexes.length;n++){
+            if(nodeIndexes[n]<=this.nodes.length){
+                this.nodes[nodeIndexes[n]].color=1;
+            }else{
+              throw "paintNodes: Index out of bounds ["+n+"]: '"+nodeIndexes[n]+"' not < "+this.nodes.length;
+                
+            }
+        }
+    }
 
-
+ ///Return string with defined LP problem based on this graph
+ /**
+  * 
+  * @param {type} source - starting point
+  * @param {type} destination
+  * @returns {undefined}
+  */
+    this.generateLP = function(source,target,tmin,tmax) {
+        
+      output="param n := "+this.nodes.length+";\n";
+      output+="param s := "+source+";\n";
+      output+="param t := "+target+";\n";
+      
+        //data: EDGES
+        eStr="param:\nE :\tTime\tQuality :=";
+        path="";
+        
+      for(var i=0;i<this.edges.length;i++){
+          eStr+="\n";
+          if(this.edges[i].time<=0){this.edges[i].time=1;}
+          eStr+=(this.edges[i].A.id+1)+" "+(this.edges[i].B.id+1) + " " + this.edges[i].time + " "+(this.edges[i].quality);
+      
+          eStr+="\n";    
+          eStr+=(this.edges[i].B.id+1)+" "+(this.edges[i].A.id+1) + " " + this.edges[i].time + " "+(this.edges[i].quality);          
+       
+           if(this.edges[i].A.color===1 && this.edges[i].B.color === 1 ){
+             path+="x["+(this.edges[i].A.id+1)+","+(this.edges[i].B.id+1)+"]=1;\n";
+           }else{
+          //path+="0";
+           }
+          }
+      eStr+=";\n\n";
+      path+=";\n\n";
+      
+      
+      
+      return "data;\n" + output + eStr /* +  path */ +  "\nend;\n" /* +path */ ;
+      
+     /*
+     tminString="tmin: ";
+     tmaxString="tmax: ";
+     for(var i=0;i<this.edges.length;i++){
+          value=this.edges[i].quality;
+          value=1;
+          output+=" +"+(value)+" * e"+this.edges[i].id+" ";
+          tminString+=" +"+this.edges[i].time+" * e"+i+" ";
+          tmaxString+=" +"+this.edges[i].time+" * e"+i+" ";
+      }
+        
+      
+      output+=";\n\nsubject to\n";
+      
+      //target time function
+      
+        tminString+=" >= "+tmin+";\n\n";
+        tmaxString+=" <= "+tmax+";\n\n";
+      //  output+=tminString;
+      //  output+=tmaxString;
+        */
+       
+        //Target conditions for nodes
+        /*
+        cnt=1;
+      for(var i=0;i<this.nodes.length;i++){
+          var node=this.nodes[i];
+            
+        if(i===source || i===destination){
+               //special case
+               
+                    if(i===source){
+                        output+="source: ";
+                    }else{
+                        output+="destination: ";
+                    }
+                    for(var n=0;n<node.edges.length;n++){
+                        output+="+e"+node.edges[n].id;
+                    }
+                    output+=" = 1;\n";
+                  
+            }else
+            {
+                    
+                    //for each neigbour vertex
+                  for(var n=0;n<node.edges.length;n++){
+                      
+                        //every equality has to have an unique name
+                        output+="h"+cnt+": ";
+                        cnt=cnt+1;
+                        output+="-e"+node.edges[n].id;
+                        for(var k=0;k<node.edges.length;k++){
+                            if(k===n){continue;}
+                            output+="+e"+node.edges[k].id;
+                        }
+                        output+=" = 0;\n";
+                     }
+           }
+      } */
+      
+          
+  }
+  
 }
 
 
@@ -499,6 +650,7 @@ g.collapse();
 */
 
 jsonString=fs.readFileSync('./data/cesty_p2_final.geojson', 'utf8');
+//jsonString=fs.readFileSync('./data/maly_test.geojson', 'utf8');
 
 
  g.loadGeoJSON(jsonString);
@@ -540,26 +692,48 @@ g.render(3000,3000,path,'fw_.png'); //[[1600000,6455000],[1605000,6460000]]
 START=50;
 END=999;
 */
+//index of start and end nodes
 START=900;
 END=1500;
 
-nodeIndexes=g.getDijkstraPath(START, END);
- //console.log(nodeIndexes);
-//nodeIndexes=[535, 529, 289, 290, 186, 187, 860 ]; //kolecko
-//nodeIndexes=[535, 529, 289]; //kolecko?
-addPath=g.getPath(nodeIndexes);
+//START=2;
+//END=3;
 
-g.render(3000,3000,addPath,[g.nodes[START],g.nodes[END]],'output/cesta.png'); //[[1600000,6455000],[1605000,6460000]] 
-console.log(g.getNodeCount());
-
-
- //console.log(addPath);
-
-
-//console.log(g.nodes);
-//process.stdout.write( JSON.stringify(g.getTimeMatrix()) );
+//index of start and end nodes
+/*
+START=parseInt(Math.random()*g.nodes.length);
+END=parseInt(Math.random()*g.nodes.length);
+*/
+/*
+//Adjactment vertices
+START=100;
+END=g.nodes[START].edges[0].getNeighbour(g.nodes[START]).id;
+*/
 
 
+//nodeIndexes=g.getDijkstraPath(START, END);
 
-//process.stdout.write( JSON.stringify(path));
 
+//
+
+LPpathNodesString=fs.readFileSync('path.dat', 'utf8');
+LPpathNodesF=LPpathNodesString.split("\n");
+
+//reindex from 1..N to 0..N-1
+LPpathNodes=new Array();
+for(i=0;i<LPpathNodesF.length;i++){
+    var x = parseInt(LPpathNodesF[i]);
+    x--;
+    if(x>=0 && x==x){
+        LPpathNodes[LPpathNodes.length]=x;  
+    }
+}
+
+
+
+process.stdout.write("/* Network with "+g.nodes.length+" nodes, SOURCE="+START+", DESTINATION="+END+" */\n");
+process.stdout.write(g.generateLP(START,END,5,20));
+
+g.paintNodes(LPpathNodes);
+//g.paintNodes(nodeIndexes);
+g.renderColorizedNodes(2000,2000,"test.png");
