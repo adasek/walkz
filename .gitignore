@@ -1,0 +1,4 @@
+web/coordinates_convert.htm
+web/_data
+web/gpx/*
+!web/gpx/sample.gpx
