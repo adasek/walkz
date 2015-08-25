@@ -25,10 +25,12 @@ var x{(i,j) in E}, binary;
 
 s.t. r{i in 1..n}: sum{(j,i) in E} x[j,i] + (if i = s then 1) =
                    sum{(i,j) in E} x[i,j] + (if i = t then 1);
-
 /* conservation conditions for unity flow from s to t; every feasible
    solution is a path from s to t */
 
+/* Don't go through one vertex twice */
+/* unnecessary? */
+s.t. p{i in 1..n}: sum{(j,i) in E} x[j,i] <= 1;
 
 
 param Quality{(i,j) in E}, >= 0;
@@ -37,6 +39,10 @@ param Quality{(i,j) in E}, >= 0;
 param Time{(i,j) in E}, >= 0;
 /* Time needed to go through edge e */
 
+
+/* Don't allow disconnected circles */
+/* not working: s.t. c{(i,j) in E}: if (sum{(z,i) in E} x[z,i] = 0) & (i!=s) then Quality[i,j]=0; */
+ 
 
 /* minimize Z: sum{(i,j) in E} Time[i,j] * x[i,j];  */
 /* objective function is the path length to be minimized */
