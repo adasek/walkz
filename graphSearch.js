@@ -387,7 +387,25 @@ function Graph () {
 	  if (err) console.log(err);	
 	});
    }
-
+   
+   this.renderWays = function(x,y,filename,waysArray){
+       
+    image=this.renderBase(x,y);
+   
+    for(var n=0;n<waysArray.length;n++){
+        //for each way
+        var w = waysArray[n];
+         image.drawLine(
+			x * (this.nodes[w[0]].x - this.minX)/(this.maxX - this.minX),
+			y * (this.nodes[w[0]].y - this.minY)/(this.maxY - this.minY),
+			x * (this.nodes[w[1]].x - this.minX)/(this.maxX - this.minX),
+			y * (this.nodes[w[1]].y - this.minY)/(this.maxY - this.minY));
+        }
+    
+	image.write(filename, function (err) {
+	  if (err) console.log(err);	
+	});
+   }
 
    //nodeList is array of indexes
    this.randomWalk = function(steps,node,prevNode){
@@ -719,13 +737,19 @@ END=g.nodes[START].edges[0].getNeighbour(g.nodes[START]).id;
 LPpathNodesString=fs.readFileSync('path.dat', 'utf8');
 LPpathNodesF=LPpathNodesString.split("\n");
 
+
 //reindex from 1..N to 0..N-1
-LPpathNodes=new Array();
+LPpathWays=new Array();
 for(i=0;i<LPpathNodesF.length;i++){
-    var x = parseInt(LPpathNodesF[i]);
-    x--;
-    if(x>=0 && x==x){
-        LPpathNodes[LPpathNodes.length]=x;  
+    thisWay=LPpathNodesF[i].split("-");
+    //this way should contain two integers
+    
+    var x = parseInt(thisWay[0]);
+    var y = parseInt(thisWay[1]);
+    x--;y--; //reindex
+    
+    if(x>=0 && x==x && y>=0 && y==y){
+        LPpathWays[LPpathWays.length]=new Array(x,y);  
     }
 }
 
@@ -734,6 +758,6 @@ for(i=0;i<LPpathNodesF.length;i++){
 process.stdout.write("/* Network with "+g.nodes.length+" nodes, SOURCE="+START+", DESTINATION="+END+" */\n");
 process.stdout.write(g.generateLP(START,END,5,20));
 
-g.paintNodes(LPpathNodes);
+g.renderWays(2000,2000,"test.png",LPpathWays);
 //g.paintNodes(nodeIndexes);
-g.renderColorizedNodes(2000,2000,"test.png");
+//g.renderColorizedNodes(2000,2000,"test.png");

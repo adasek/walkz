@@ -32,6 +32,9 @@ s.t. r{i in 1..n}: sum{(j,i) in E} x[j,i] + (if i = s then 1) =
 /* unnecessary? */
 s.t. p{i in 1..n}: sum{(j,i) in E} x[j,i] <= 1;
 
+#Does not work
+#s.t. e{(i,j) in E}: Visited[j]=if (j=s) then (1) else (if (x[i,j]=1 & Visited[i]=1) then (1) else (0));
+ 
 
 param Quality{(i,j) in E}, >= 0;
 /* Aggregated quality of edge e */
@@ -41,12 +44,14 @@ param Time{(i,j) in E}, >= 0;
 
 
 /* Don't allow disconnected circles */
-/* not working: s.t. c{(i,j) in E}: if (sum{(z,i) in E} x[z,i] = 0) & (i!=s) then Quality[i,j]=0; */
- 
+
+
+#var Visited{i in {1..n}},binary;
+#s.t. visit{k in 1..n}: Visited[k] = sum{(i,k) in E} x[i,k] * Visited[i];
 
 /* minimize Z: sum{(i,j) in E} Time[i,j] * x[i,j];  */
 /* objective function is the path length to be minimized */
-maximize Z: sum{(i,j) in E} Quality[i,j] * x[i,j]; 
+maximize Z: sum{(i,j) in E} Quality[i,j] * x[i,j];
 
 
 subject to
@@ -55,9 +60,11 @@ time: sum{(i,j) in E} Time[i,j] * x[i,j] <= 60;
 
 solve;
 
+#Print which vertices are Visited
+#printf {i in {1..n}} (if Visited[i] == 1 then "VISITED:%d\n" else " not visited %d\n"),i ; 
 printf "#OUTPUT START\n";
 #printf{(i,j) in E} "[%d,%d]=%d\n", i, j; 
-printf {(i,j) in E} (if x[i,j] == 1 then ":%d\n:%d\n" else ""),i,j ; 
+printf {(i,j) in E} (if x[i,j] == 1 then ":%d-%d\n" else ""),i,j ; 
 printf "#OUTPUT END\n";
 
 end;
