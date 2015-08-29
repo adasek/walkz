@@ -1,15 +1,8 @@
 #!/usr/bin/nodejs
-fs = require('fs');
-gm = require('gm');
+fs = require('fs');  //Filesystem related functions = read and open files
+gm = require('gm');  //Graphics = rendering of the graph
+var PriorityQueue = require('priorityqueuejs'); //npm install priorityqueuejs
 
-
-//Input
-/*
-var loaded=JSON.parse('{ "efg" : 123 }')
-var A={};
-A.test=1;
-process.stdout.write( "t:"+loaded.efg );
-*/
 
 //DEFAULT PARAMETERS
 //each params.coeffs is from interval 0..1
@@ -20,12 +13,14 @@ params.coeffs['green']=0.5;
 params.coeffs['smog']=0.5;
 
 
+
+
 function Edge(properties){
    this.time=properties.time;
    this.quality=properties.quality;
    this.A=properties.A;
    this.B=properties.B;
-   this.euclideanLength=Math.sqrt(Math.pow(A.x-A.y,2)+Math.pow(B.x-B.y,2));
+   this.euclideanLength=Math.sqrt(Math.pow(this.A.x-this.A.y,2)+Math.pow(this.B.x-this.B.y,2));
    this.id=properties.idn;
         //console.log(properties);
 
@@ -63,24 +58,33 @@ function Vertex(properties){
   this.roads=[];
   this.edges=[];
   this.color=0;
+  this.timeToSource=-1; //minimal time to reach starting node; -1 if not counted. Relevant to iteratingBFS function   
+  this.timeToDestination=-1; //minimal time to reach starting node; -1 if not counted. Relevant to iteratingBFS function
 
    this.addEdge = function(e){
-		if(undefined!=e && e!=null){
+		if(undefined!==e && e!==null){
 		this.edges[this.edges.length]=e;
-		}	
-	}
+		}
+            };
+            
+   this.distance = function(vertex){
+       var dx=this.x-vertex.x;
+       var dy=this.y-vertex.y;
+       return Math.sqrt(dx*dx + dy*dy); 
+   }
+		
 }
 
 function Graph () {
     this.edges = [];
     this.vertices = {};
     this.nodes = [];
-    this.minX=Infinity;
+    this.minX=9999999;
     this.maxX=0;
-    this.minY=Infinity;
+    this.minY=9999999;
     this.maxY=0;
-    this.fw_noPrevNode = -1
-    
+    this.fw_noPrevNode = -1;
+    this.SEGMENT_SIZE = 1; //for BSF algorithm
 	
     //private
     this.addNode = function(x,y){
@@ -215,7 +219,22 @@ function Graph () {
     ///@param path Array of GeoPoints (pairs of lat,lon)
     //private function
     this.addPath = function(path,properties) {
-     for(pathI=1;pathI<path.length;pathI++){
+        /* Problem:
+         * property .time is the same for each edge
+         * Let's divide it between edges by euclidian distance
+         */
+        //count euclidian distance
+        totalDistance=0;
+        totalTime=properties.min;
+        for(var pathI=1;pathI<path.length;pathI++){
+            
+            var A=this.addNode(path[pathI][0],path[pathI][1]);
+            //add also my neighbour	
+            var B=this.addNode(path[pathI-1][0],path[pathI-1][1]);
+            totalDistance+=A.distance(B);
+        }
+        
+     for(var pathI=1;pathI<path.length;pathI++){
      
 	A=this.addNode(path[pathI][0],path[pathI][1]);
 
@@ -223,6 +242,7 @@ function Graph () {
 	B=this.addNode(path[pathI-1][0],path[pathI-1][1]);
 	
 	if(A!=null && B!=null){
+         properties.min=A.distance(B) * totalTime / totalDistance;
 	 this.addEdge(A,B,properties);
 	}
 
@@ -654,6 +674,161 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
           
   }
   
+     ///Counting the shortest destination to source; Jarnik algorithm
+     /**
+      https://en.wikipedia.org/wiki/Prim's_algorithm 
+     
+      Subset V' of Nodes :={source}
+       Repeat until V' is not all graph nodes:
+        {
+         Choose edge (u,v) going out of V' with minimal cost
+         Add Node v to V'
+        }
+     */
+    this.countTimeToReach = function(target,property) {
+      //Initialize
+      for(var i=0;i<this.nodes.length;i++){
+       this.nodes[i][property]=-1;
+      } 
+          
+      //Priority queue: keeps minimum of Item time. 
+      var queue = new PriorityQueue(function(a, b) {
+        return b.time - a.time;
+      });
+
+      /*
+       Item in priority node is composed of:
+        time (we want always use an edge with shortest time}
+        node (where it points us)
+        neighTime (timeToSource of Node already in subset V') 
+      */
+      queue.enq({ neighTime:0, time: 0, node: this.nodes[target] }); 
+       while(queue.size()>0){    
+        var nextItem = queue.deq();                        
+        var nextNode = nextItem.node;
+        nextNode[property] = nextItem.neighTime + nextItem.time;
+         for(var n=0;n<nextNode.edges.length;n++){
+            var edge=nextNode.edges[n];
+            var neighbour=edge.getNeighbour(nextNode);
+            if(neighbour[property]<0){ //not yet visited
+                queue.enq({ neighTime: (nextNode[property]), time: (edge.time), node: neighbour }); 
+               
+ // process.stdout.write("enq: "+nextNode[property]+"->"+ edge.time + "\n");
+              }
+              
+         }
+       }
+   }
+  
+  
+   this.iteratingBFS_start = function(source,destination,tmin,tmax){
+       
+          this.countTimeToReach(source,"timeToSource");  
+          this.countTimeToReach(destination,"timeToDestination");
+       
+       this.myNodesBitmap=new Array(this.nodes.length);
+        //Select only reachable nodes
+        for(var i=0;i<this.nodes.length;i++){
+                
+                //also initialize our data and recursive func
+                this.nodes[i].bestPaths=new Array();
+                this.nodes[i].maxTable=new Array(parseInt(tmax / this.SEGMENT_SIZE) );
+                this.nodes[i].SEGMENT_SIZE=this.SEGMENT_SIZE;
+                this.nodes[i].tmax=tmax;
+                //item = {time,value,nextNode}
+                this.nodes[i].joinMaxTable = function(edge,jTable){
+                    
+                     // process.stdout.write("k "+this.id+"\n");
+                    
+                        //join this.maxTable and jTable
+                        for(var j=0;j<jTable.length;j++){
+                            if(jTable[j]!=null && edge!==undefined){                 
+                             //process.stdout.write("j="+j+"\n");
+                             if(typeof(edge.getNeighbour) !== 'function'){
+                                break; //last node has special null edge.
+                               }
+                             if(jTable[j]==undefined){
+                                /* actually I don't have anything to add. */
+                                continue;
+                             }
+                             
+                    // process.stdout.write("joining: "+this.id + " with "+ edge.getNeighbour(this).id+"\n");
+      
+                             if( this.SEGMENT_SIZE*j + this.timeToSource > this.tmax){break;}
+                             
+                               //console.log(typeof(edge.getNeighbour));
+                            var addRecord={time:jTable[j].time+edge.time,value:jTable[j].value+edge.quality,nextNode:null};
+                            //addRecord
+                            var index=Math.floor(addRecord.time); //target index
+                               
+                                if(this.maxTable[index]===undefined || this.maxTable[index].value > addRecord.value){
+                                 //addRecord is better
+                                 addRecord.nextNode=edge.getNeighbour(this);
+                                 this.maxTable[index]=addRecord;
+                                 
+                                 //process.stdout.write("+");
+                                }
+                          }  
+                        }
+                }
+                
+            this.myNodesBitmap[i]=0;
+            if ((this.nodes[i].timeToSource + this.nodes[i].timeToDestination) <= tmax){
+                this.myNodesBitmap[i]=1;
+             }
+        //initialize color
+        this.nodes[i].color=0;
+        }
+       
+   }
+  
+  this.shuffle = function(o){
+    for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+    return o;
+}
+  
+ ///
+ /**
+  * 
+  * @param {int} source starting point
+  * @param {int} destination            
+  * @param {int} tmin low bound for path time
+  * @param {int} tmax high bound for path time
+  * @returns {undefined}
+  */
+    this.iteratingBFS_step = function(source,destination,tmin,tmax) {
+        
+        
+        for(var i=0;i<this.nodes.length;i++){
+         //initialize color
+         this.nodes[i].color=0;
+        }
+        
+        
+        //simple queue of Nodes for BFS
+
+         //process.stdout.write("queues: ");
+         var queue=[{edge:{time:0,value:0,nextNode:null}, node:this.nodes[destination]}];
+         while(queue.length>0){
+          var tItem = queue.shift();
+          var tNode = tItem.node;
+          tNode.color=1;
+          //process.stdout.write(""+tNode.id+", "); 
+           for(var n=0;n<tNode.edges.length;n++){
+         
+            var edge=tNode.edges[n];
+            var neighbour=edge.getNeighbour(tNode);
+          
+          
+             tNode.joinMaxTable(tItem.edge, neighbour.maxTable);
+             if(this.myNodesBitmap[neighbour.id]==1 && neighbour.color==0){ //check if it is in our subset
+               queue.push({edge:edge,node:neighbour});
+               this.shuffle(queue);
+              }
+           }
+         }  
+          //process.stdout.write("\n\n"); 
+    }
 }
 
 
@@ -734,6 +909,7 @@ END=g.nodes[START].edges[0].getNeighbour(g.nodes[START]).id;
 
 //
 
+/*
 LPpathNodesString=fs.readFileSync('path.dat', 'utf8');
 LPpathNodesF=LPpathNodesString.split("\n");
 
@@ -752,12 +928,81 @@ for(i=0;i<LPpathNodesF.length;i++){
         LPpathWays[LPpathWays.length]=new Array(x,y);  
     }
 }
-
-
-
-process.stdout.write("/* Network with "+g.nodes.length+" nodes, SOURCE="+START+", DESTINATION="+END+" */\n");
-process.stdout.write(g.generateLP(START,END,5,20));
-
 g.renderWays(2000,2000,"test.png",LPpathWays);
+
+*/
+
+
+
+//process.stdout.write("/* Network with "+g.nodes.length+" nodes, SOURCE="+START+", DESTINATION="+END+" */\n");
+//process.stdout.write(g.generateLP(START,END,5,20))
+
+    g.iteratingBFS_start (START,END,60,90);
+    g.nodes[END].maxTable[0]={time:0,value:0,nextNode:null};
+for(var it=0;it<100;it++){ //200 iterations is temporary!
+      process.stdout.write("ITERATION "+it+"\n");   
+        
+    g.iteratingBFS_step (START,END,60,90);
+    
+    cnt=0;
+    for(var n=0;n<g.nodes.length;n++){
+        var j=0;
+        while(g.nodes[n].maxTable[j]!==undefined){
+            j++;
+        }
+        if(j>0){cnt++;}
+    }
+    process.stdout.write(" visited: "+cnt+"\n");
+}
+
+
+//forward tracking
+console.log(START);
+console.log(END);
+myNode=g.nodes[START];
+path=new Array();
+remainingTime=9999;
+while(myNode!==g.nodes[END]){
+    
+        var i=0;
+        while(myNode.maxTable[i]!==undefined){
+            if(remainingTime<myNode.maxTable[i].time){break;}
+            i++;
+        }
+        i--;
+          process.stdout.write("myNode.id="+myNode.id+", i="+i+"\n");
+      
+        if(myNode.maxTable[i]!==undefined){
+            
+            path[path.length]=new Array(myNode.id,myNode.maxTable[i].nextNode.id);
+            myNode=myNode.maxTable[i].nextNode;
+        }else{break;}
+}
+    
+g.renderWays(2000,2000,"new_test.png",path);
+
+
+
+for(var i=0;i<g.nodes.length;i++){
+    var n=0;
+  
+   
+    while(g.nodes[i].maxTable[n]!==undefined){
+         
+        process.stdout.write(n+"|"+g.nodes[i].id+"->");
+        
+//                            console.log(g.nodes[i].maxTable[n].nextNode);
+        if(g.nodes[i].maxTable[n].nextNode!==null){
+            process.stdout.write(" "+g.nodes[i].maxTable[n].nextNode.id);
+        }
+        
+        process.stdout.write(":t="+g.nodes[i].maxTable[n].time+"");
+        process.stdout.write(":v="+g.nodes[i].maxTable[n].value+"\n");   
+        n++;
+    }
+   
+ }
+// */
+
 //g.paintNodes(nodeIndexes);
 //g.renderColorizedNodes(2000,2000,"test.png");
