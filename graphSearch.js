@@ -2,6 +2,7 @@
 fs = require('fs');  //Filesystem related functions = read and open files
 gm = require('gm');  //Graphics = rendering of the graph
 var PriorityQueue = require('priorityqueuejs'); //npm install priorityqueuejs
+var SortedList = require('sortedlist');//npm install sortedlist
 
 
 //DEFAULT PARAMETERS
@@ -11,6 +12,8 @@ var params={};
 params.coeffs=[]
 params.coeffs['green']=0.5;
 params.coeffs['smog']=0.5;
+
+var improvedItems=0;
 
 
 
@@ -84,7 +87,7 @@ function Graph () {
     this.minY=9999999;
     this.maxY=0;
     this.fw_noPrevNode = -1;
-    this.SEGMENT_SIZE = 1; //for BSF algorithm
+    this.SEGMENT_SIZE = 0.1; //for BSF algorithm
 	
     //private
     this.addNode = function(x,y){
@@ -749,7 +752,7 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
                                }
                              if(jTable[j]==undefined){
                                 /* actually I don't have anything to add. */
-                                continue;
+                               continue;
                              }
                              
                     // process.stdout.write("joining: "+this.id + " with "+ edge.getNeighbour(this).id+"\n");
@@ -757,15 +760,33 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
                              if( this.SEGMENT_SIZE*j + this.timeToSource > this.tmax){break;}
                              
                                //console.log(typeof(edge.getNeighbour));
-                            var addRecord={time:jTable[j].time+edge.time,value:jTable[j].value+edge.quality,nextNode:null};
+                            var addRecord={time:jTable[j].time+edge.time,value:jTable[j].value+edge.quality,nextNode:null,visitedSiblings:new SortedList()};
                             //addRecord
-                            var index=Math.floor(addRecord.time); //target index
-                               
-                                if(this.maxTable[index]===undefined || this.maxTable[index].value > addRecord.value){
+                            var index=Math.floor(addRecord.time/this.SEGMENT_SIZE); //target index
+                            
+                                if((this.maxTable[index]===undefined || this.maxTable[index].value > addRecord.value)){
                                  //addRecord is better
+                                 improvedItems++;
                                  addRecord.nextNode=edge.getNeighbour(this);
-                                 this.maxTable[index]=addRecord;
-                                 
+                                 /*
+                                 if(addRecord.nextNode==null || addRecord.nextNode.id==0){
+                                     console.log(edge);                                     
+                                 }
+                                 */
+                                  if(this.destinationDepth !==  addRecord.nextNode.destinationDepth || jTable[j].visitedSiblings.bsearch(this.id)==-1){
+                                        //This node has not been visited in this family. And a
+                                        
+                                     if(this.destinationDepth ==  addRecord.nextNode.destinationDepth){
+                                      vSiblingsArr=jTable[j].visitedSiblings.toArray();
+                                      vSiblings=new SortedList(vSiblingsArr);
+                                      addRecord.visitedSiblings=vSiblings;
+                                    }else{
+                                          //we are going from depth to depth+1 and our family may be empty
+                                    }
+                                   addRecord.visitedSiblings.insertOne(this.id); //add this node to already visited siblings from family
+
+                                   this.maxTable[index]=addRecord;
+                                    }
                                  //process.stdout.write("+");
                                 }
                           }  
@@ -778,8 +799,34 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
              }
         //initialize color
         this.nodes[i].color=0;
+        this.nodes[i].color2=0;
+        
         }
-       
+        
+        //Initialize depth info
+        //infoDepths=new Array(100);
+        //for(var i=0;i<100;i++){infoDepths[i]=0;}
+         
+       var queue=[{depth:0,node:this.nodes[destination]}];
+         while(queue.length>0){
+          var tItem = queue.shift();
+          tNode=tItem.node;
+          tNode.color2=1;
+          tNode.destinationDepth=tItem.depth;
+          //infoDepths[tItem.depth]++;
+           for(var n=0;n<tNode.edges.length;n++){
+            var edge=tNode.edges[n];
+            var neighbour=edge.getNeighbour(tNode);
+            if(this.myNodesBitmap[neighbour.id]==1 && neighbour.color2==0){ //check if it is in our subset
+               queue.push({depth:tNode.destinationDepth+1,node:neighbour});
+              }
+           }
+         }
+         
+         //Show info about depths
+         //for(var i=0;i<100;i++){
+         //process.stdout.write( "D "+i+":"+infoDepths[i]+"\n" );
+         //}
    }
   
   this.shuffle = function(o){
@@ -809,6 +856,9 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
 
          //process.stdout.write("queues: ");
          var queue=[{edge:{time:0,value:0,nextNode:null}, node:this.nodes[destination]}];
+         var queueNextDepth=[];
+         var currentDepth=0;
+         
          while(queue.length>0){
           var tItem = queue.shift();
           var tNode = tItem.node;
@@ -822,13 +872,36 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
           
              tNode.joinMaxTable(tItem.edge, neighbour.maxTable);
              if(this.myNodesBitmap[neighbour.id]==1 && neighbour.color==0){ //check if it is in our subset
-               queue.push({edge:edge,node:neighbour});
-               this.shuffle(queue);
+                 if(tNode.destinationDepth!=neighbour.destinationDepth){
+                  queueNextDepth.push({edge:edge,node:neighbour});
+                }else{
+                  queue.push({edge:edge,node:neighbour});   
+                }
               }
+           }
+           if(queue.length==0){
+               this.shuffle(queueNextDepth);
+               queue=queueNextDepth;
+               queueNextDepth=[];
            }
          }  
           //process.stdout.write("\n\n"); 
     }
+    
+    
+    
+    this.findEdge = function(Vertex1_id,Vertex2_id){
+        if(Vertex1_id == Vertex2_id){
+            throw "find Edge Vertex1_id == Vertex2_id";
+        }
+        var v=this.nodes[Vertex1_id];
+        for(var c=0;c<v.edges.length;c++){
+            if(v.edges[c].A.id == Vertex2_id || v.edges[c].B.id == Vertex1_id){
+                return v.edges[c];
+            }
+        }
+        return null;
+    };
 }
 
 
@@ -938,21 +1011,24 @@ g.renderWays(2000,2000,"test.png",LPpathWays);
 //process.stdout.write(g.generateLP(START,END,5,20))
 
     g.iteratingBFS_start (START,END,60,90);
-    g.nodes[END].maxTable[0]={time:0,value:0,nextNode:null};
-for(var it=0;it<100;it++){ //200 iterations is temporary!
+    g.nodes[END].maxTable[0]={time:0,value:0,nextNode:null,visitedSiblings:new SortedList()};
+for(var it=0;it<20;it++){ //200 iterations is temporary!
       process.stdout.write("ITERATION "+it+"\n");   
         
     g.iteratingBFS_step (START,END,60,90);
     
     cnt=0;
     for(var n=0;n<g.nodes.length;n++){
-        var j=0;
-        while(g.nodes[n].maxTable[j]!==undefined){
-            j++;
+        var j=0;var c=0;
+        for(j=0;j<g.nodes[n].maxTable.length;j++){
+            if(g.nodes[n].maxTable[j]!==undefined){
+            cnt++;
+            }
         }
-        if(j>0){cnt++;}
     }
-    process.stdout.write(" visited: "+cnt+"\n");
+   process.stdout.write(" Table entries: "+cnt+"\n");
+   process.stdout.write("Improved: "+improvedItems+"\n");
+   improvedItems=0;
 }
 
 
@@ -961,28 +1037,38 @@ console.log(START);
 console.log(END);
 myNode=g.nodes[START];
 path=new Array();
-remainingTime=9999;
+remainingTime=90;
+pathTime=0;
 while(myNode!==g.nodes[END]){
-    
         var i=0;
-        while(myNode.maxTable[i]!==undefined){
-            if(remainingTime<myNode.maxTable[i].time){break;}
-            i++;
-        }
-        i--;
-          process.stdout.write("myNode.id="+myNode.id+", i="+i+"\n");
+        var maxVal=-1;
+        
+            for(j=0;j<myNode.maxTable.length;j++){
+                if(myNode.maxTable[j]!==undefined){
+                 process.stdout.write("("+remainingTime+"/"+myNode.maxTable[j].time+")\n");
+                }   
+              if(myNode.maxTable[j]!==undefined && maxVal < myNode.maxTable[j].value && (remainingTime)>=myNode.maxTable[j].time){
+                  i=j;
+                  maxVal=myNode.maxTable[j].value;
+                }
+            }
+        //process.stdout.write("[ "+remainingTime+"/"+myNode.maxTable[i].time+"]");
+        
+        process.stdout.write(myNode.id+"("+i+")-> ");
       
-        if(myNode.maxTable[i]!==undefined){
-            
+        if(myNode.maxTable[i]!==undefined){      
+            pathTime+=g.findEdge(myNode.id,myNode.maxTable[i].nextNode.id).time;
+            remainingTime=myNode.maxTable[i].time - g.findEdge(myNode.id,myNode.maxTable[i].nextNode.id).time;
             path[path.length]=new Array(myNode.id,myNode.maxTable[i].nextNode.id);
             myNode=myNode.maxTable[i].nextNode;
-        }else{break;}
+        }else{console.log(i);console.log(maxVal);console.log(myNode);break;}
 }
     
+process.stdout.write("Time: "+pathTime+"\n");
 g.renderWays(2000,2000,"new_test.png",path);
 
 
-
+/*
 for(var i=0;i<g.nodes.length;i++){
     var n=0;
   
