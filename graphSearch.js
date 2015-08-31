@@ -48,6 +48,10 @@ function Edge(properties){
    else if(this.B.id!=vertex.id){return this.B;}
    else {throw "getNeighbour failed!"}
   }
+  
+  this.getSumedQuality = function(){
+   return this.quality * this.time;
+  }
 }
 
 
@@ -468,7 +472,7 @@ function Graph () {
 
 
 
-	sortedEdges=node.edges.sort( function(a,b){return b.quality-a.quality;} );
+	sortedEdges=node.edges.sort( function(a,b){return b.getSumedQuality()-a.getSumedQuality();} );
 	for(myIn=0;myIn<sortedEdges.length;myIn++){
 		if(
 		  node.edges[myIn].A.id==prevNode.id && node.edges[myIn].B.id==node.id ||
@@ -596,10 +600,10 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
       for(var i=0;i<this.edges.length;i++){
           eStr+="\n";
           if(this.edges[i].time<=0){this.edges[i].time=1;}
-          eStr+=(this.edges[i].A.id+1)+" "+(this.edges[i].B.id+1) + " " + this.edges[i].time + " "+(this.edges[i].quality);
+          eStr+=(this.edges[i].A.id+1)+" "+(this.edges[i].B.id+1) + " " + this.edges[i].time + " "+(this.edges[i].getSumedQuality());
       
           eStr+="\n";    
-          eStr+=(this.edges[i].B.id+1)+" "+(this.edges[i].A.id+1) + " " + this.edges[i].time + " "+(this.edges[i].quality);          
+          eStr+=(this.edges[i].B.id+1)+" "+(this.edges[i].A.id+1) + " " + this.edges[i].time + " "+(this.edges[i].getSumedQuality());          
        
            if(this.edges[i].A.color===1 && this.edges[i].B.color === 1 ){
              path+="x["+(this.edges[i].A.id+1)+","+(this.edges[i].B.id+1)+"]=1;\n";
@@ -618,7 +622,7 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
      tminString="tmin: ";
      tmaxString="tmax: ";
      for(var i=0;i<this.edges.length;i++){
-          value=this.edges[i].quality;
+          value=this.edges[i].getSumedQuality();
           value=1;
           output+=" +"+(value)+" * e"+this.edges[i].id+" ";
           tminString+=" +"+this.edges[i].time+" * e"+i+" ";
@@ -760,7 +764,7 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
                              if( this.SEGMENT_SIZE*j + this.timeToSource > this.tmax){break;}
                              
                                //console.log(typeof(edge.getNeighbour));
-                            var addRecord={time:jTable[j].time+edge.time,value:jTable[j].value+edge.quality,nextNode:null,visitedSiblings:new SortedList()};
+                            var addRecord={time:jTable[j].time+edge.time,value:jTable[j].value+edge.getSumedQuality(),nextNode:null,visitedSiblings:new SortedList()};
                             //addRecord
                             var index=Math.floor(addRecord.time/this.SEGMENT_SIZE); //target index
                             
@@ -902,7 +906,67 @@ fs.writeFile("fw_timeMatrix.dat",  JSON.stringify(fwMatrix), function(err) {
         }
         return null;
     };
+
+
+///
+ /**
+  * Generate plot skeleton and return as array of edges ()
+  * @param {array} removed
+  * @returns {array} array of edges
+  */
+    this.skeleton = function(removed) {
+        
+        for(var i=0;i<this.nodes.length;i++){
+            this.nodes[i].color=0;
+        }
+        this.nodes[0].color=1; //initial
+        
+        //Priority queue of Edges keeps minimum of Item time.
+        var queue = new PriorityQueue(function(a, b) {
+          return a.getSumedQuality() - b.getSumedQuality();
+        });
+        
+        for(var i=0;i<this.nodes[1].edges.length;i++){
+           queue.enq(this.nodes[0].edges[i]); 
+        }
+        
+        visitedVertices=1;
+        ret = new Array();
+        
+        while(visitedVertices<this.nodes.length){
+            
+            var e=queue.deq();
+            if(e.A.color==0){
+                e.A.color=1;
+                visitedVertices++;
+                ret[ret.length]=e;
+                for(var k=0;k<e.A.edges.length;k++){
+                   queue.enq(e.A.edges[k]); 
+                }
+            }
+            if(e.B.color==0){
+                e.B.color=1;
+                visitedVertices++;
+                ret[ret.length]=e;
+                for(var k=0;k<e.B.edges.length;k++){
+                   queue.enq(e.B.edges[k]); 
+                }
+            }
+        }
+        return ret;
+    };
+    
+        this.edges2id = function(edges) {
+         ret=new Array();
+         for(var i=0;i<edges.length;i++){
+           ret[ret.length]=[edges[i].A.id,edges[i].B.id];
+         }
+          return ret;
+        };
+
 }
+
+
 
 
 
@@ -980,9 +1044,20 @@ END=g.nodes[START].edges[0].getNeighbour(g.nodes[START]).id;
 //nodeIndexes=g.getDijkstraPath(START, END);
 
 
-//
 
+/************ Linear programing approach **********/
 /*
+problemDescr="# Network with "+g.nodes.length+" nodes, SOURCE="+START+", DESTINATION="+END+"\n";
+problemDescr+=g.generateLP(START,END,5,20);
+fs.writeFileSync('a.mod', problemDescr);
+
+//Does not work in Nodejs 0.10 - must be >=0.12
+//require('child_process').execSync('glpsol --noscale -m head.mod -d a.mod|grep "^:"|sed \'s/^://\'|sort|uniq > path.dat')
+//you have to manually invoke:
+//nodejs graphSearch.js && glpsol --noscale -m head.mod -d a.mod|grep "^:"|sed 's/^://'|sort|uniq > path.dat && nodejs ./graphSearch.js 
+
+
+//Load path generated by glpsol
 LPpathNodesString=fs.readFileSync('path.dat', 'utf8');
 LPpathNodesF=LPpathNodesString.split("\n");
 
@@ -1003,13 +1078,12 @@ for(i=0;i<LPpathNodesF.length;i++){
 }
 g.renderWays(2000,2000,"test.png",LPpathWays);
 
-*/
+//*/
 
 
 
-//process.stdout.write("/* Network with "+g.nodes.length+" nodes, SOURCE="+START+", DESTINATION="+END+" */\n");
-//process.stdout.write(g.generateLP(START,END,5,20))
-
+/************ BFS approach **********/
+/*
     g.iteratingBFS_start (START,END,60,90);
     g.nodes[END].maxTable[0]={time:0,value:0,nextNode:null,visitedSiblings:new SortedList()};
 for(var it=0;it<20;it++){ //200 iterations is temporary!
@@ -1065,7 +1139,19 @@ while(myNode!==g.nodes[END]){
 }
     
 process.stdout.write("Time: "+pathTime+"\n");
-g.renderWays(2000,2000,"new_test.png",path);
+g.renderWays(2000,2000,"bfs.png",path);
+//*/
+
+
+
+
+/************ graph skeleton approach **********/
+
+skeleton=g.skeleton();
+g.renderWays(2000,2000,"skelet.png",g.edges2id(skeleton));
+//g skeleton is acyclic graph.
+//let's use it for our algorithm
+
 
 
 /*
