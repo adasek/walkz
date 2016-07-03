@@ -1,5 +1,6 @@
 web/coordinates_convert.htm
 web/_data
-web/gpx/*
+web/gpx/*    
+web/cache/*
 !web/gpx/sample.gpx
 /nbproject/private/

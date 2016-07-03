@@ -53,11 +53,13 @@ if (is_dir($dir)) {
              echo ",\n";
             }
             
-            if(file_exists("/var/www/adasek.cz/osm/cache/".md5_file($dir."/".$file).".cache")){
+            if(file_exists("cache/".md5_file($dir."/".$file).".cache")){
              //read from cache instead
-             echo file_get_contents("/var/www/adasek.cz/osm/cache/".md5_file($dir."/".$file).".cache");
+            fwrite(STDERR,  "C:".$dir."/".$file."\n");
+             echo file_get_contents("cache/".md5_file($dir."/".$file).".cache");
              continue;
             }
+            fwrite(STDERR, "N:".$dir."/".$file."\n");
             
             /* GPX parser */
             $xml=simplexml_load_string(file_get_contents($dir."/".$file)) or die("Error: Cannot create object");
@@ -84,13 +86,27 @@ if (is_dir($dir)) {
              $Alat=(double)$attr["lat"];  
              $Alon=(double)$attr["lon"];  
              
+             //center computing
+               $totalLat=0;
+               $totalLon=0;
+               $pointsCnt=0;
+               
              for($i=1;$i<count($xml->trk->trkseg->trkpt)-1;$i++){
+                 
+                 if($i%100==0){
+                  fwrite(STDERR, $i."/".(count($xml->trk->trkseg->trkpt)-1)."\n");
+                  fflush(STDERR);                 
+                 }
+                 
               // print_r($xml->trk->trkseg->trkpt[$i]);
               $Btime=strtotime($xml->trk->trkseg->trkpt[$i]->time);
               $Bele=(double)$xml->trk->trkseg->trkpt[$i]->ele;      
                $attr=$xml->trk->trkseg->trkpt[$i]->attributes();   
               $Blat=(double)$attr["lat"];  
               $Blon=(double)$attr["lon"];  
+               $totalLat+=$Blat;
+               $totalLon+=$Blon;
+               $pointsCnt++;
                /* Distance between points and height differential */
                $trackDistance+=haversineGreatCircleDistance($Alat,$Alon,$Blat,$Blon);
                if($Bele>$Aele){
@@ -106,6 +122,8 @@ if (is_dir($dir)) {
               $Alat=$Blat;
               $Alon=$Blon;
              }
+             
+             
             
             $hash=md5($journeyStart);
            $num1=hexdec(substr($hash,0,2));  
@@ -130,14 +148,15 @@ if (is_dir($dir)) {
            $output.="\"timeEnd\": \"".gmdate("Y-m-d\TH:i:s\Z",$journeyEnd)."\",\n";  
            $output.="\"timeElapsed\": \"".($journeyEnd-$journeyStart)."\",\n";                                                   
            $output.="\"distance\": \"".$trackDistance."\", \n";                                                            
-           $output.="\"upElevation\": \"".$upEle."\", \n";                                                   
+           $output.="\"upElevation\": \"".$upEle."\", \n";                                                         
+           $output.="\"center\": [".($totalLon/$pointsCnt).",".($totalLat/$pointsCnt)."], \n";    
            $output.="\"downElevation\": \"".$downEle."\", \n";                                  
            $output.="\"color\": \"".$color."\"\n";  
            /* */
           
            $output.="  }";
                    
-           file_put_contents("/var/www/adasek.cz/osm/cache/".md5_file($dir."/".$file).".cache",$output);
+           file_put_contents("cache/".md5_file($dir."/".$file).".cache",$output);
            echo $output;
            
         }
@@ -148,7 +167,7 @@ if (is_dir($dir)) {
 echo "]}";
 
 $data=ob_get_contents();
-file_put_contents("/var/www/adasek.cz/osm/cache/metadata.json",$data); 
+file_put_contents("cache/metadata.json",$data); 
 //file_put_contents("../cache/metadata.json",$data);    
 ob_end_flush ();
 
