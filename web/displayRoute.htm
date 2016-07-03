@@ -6,7 +6,7 @@
  <link rel="stylesheet" href="lib/openlayers/ol.css" type="text/css">
              
  <script src="lib/jquery/jquery-2.1.4.min.js" ></script>     
- <script src="lib/openlayers/ol.js" ></script>            
+ <script src="lib/openlayers/ol-debug.js" ></script>            
  <script src="lib/date.format/date.format.js" ></script>   
  <script src="lib/d3.min.js"></script>      
  <script src="lib/jtps/jtps.js" ></script>   
@@ -71,12 +71,13 @@ function init(){
   
  
            
-     var tl=ol.proj.transform([14.224090, 49.941601], 'EPSG:4326', 'EPSG:900913');  
-     var br=ol.proj.transform([14.706750, 50.177650], 'EPSG:4326', 'EPSG:900913');
+     var tl=ol.proj.transform([14, 49], 'EPSG:4326', 'EPSG:900913');  
+     var br=ol.proj.transform([15, 51], 'EPSG:4326', 'EPSG:900913');
      
   var layers=new Array();
   
   /* My server OSM layer */
+  /*
   layers[0] = new ol.layer.Tile({
       source: new ol.source.OSM({
         url: "http://adasek.cz/osm/tiles/{z}/{x}/{y}.png",  
@@ -85,14 +86,16 @@ function init(){
         
       })
   }); 
+*/
   
   /* default OSM layer */
-  layers[1] = new ol.layer.Tile({
+  layers.push(new ol.layer.Tile({
       source: new ol.source.OSM({
         params: {},
         name: "OSM tiles from public server"
       })
-  });
+  })
+          );
   
   
           
@@ -211,7 +214,7 @@ $( document ).ready(function() {
 
 $.ajax({
   dataType: "json",
-  url: "../cache/metadata.json",
+  url: "cache/metadata.json",
   data: {},
   success: function( response ) {
   tracks=response.tracks; 
@@ -220,6 +223,7 @@ $.ajax({
      for(i=0;i<tracks.length;i++){  
       /* Create layer */
       
+            
       var vectorSource= new ol.source.Vector({
                 url: tracks[i].file,
                 format: new ol.format.GPX()
@@ -241,6 +245,17 @@ $.ajax({
         tracks[i].startDay=time.format("y-m-d");
             
         map.addLayer(vector);   
+        
+       if(location.hash.length!==0 && location.hash==="#"+tracks[i].file.replace("gpx/","")){
+                 //desired layer!
+                 tracks[i].layer.setVisible(true);
+                //center at start point
+                map.getView().setCenter(ol.proj.transform(tracks[i].center, 'EPSG:4326', 'EPSG:3857'));   
+            }else if(location.hash.length!==0){
+                 tracks[i].layer.setVisible(false);
+            }else{
+                 tracks[i].layer.setVisible(true);
+            }
        }  
        
                
@@ -286,7 +301,7 @@ $.ajax({
               tCh=document.createElement('input');  
               tCh.type="checkbox"; 
               tCh.setAttribute('data-id',i);
-              tCh.checked=tracks[i].layer.getVisible(); 
+                  tCh.checked=tracks[i].layer.getVisible(); 
               tCh.setAttribute('id','tChechkbox_'+i);
                 
               tCh.addEventListener('change', function(){
