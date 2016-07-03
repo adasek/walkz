@@ -55,11 +55,15 @@ if (is_dir($dir)) {
             
             if(file_exists("cache/".md5_file($dir."/".$file).".cache")){
              //read from cache instead
-            fwrite(STDERR,  "C:".$dir."/".$file."\n");
+                if(gettype(STDERR)=="resource"){
+                    fwrite(STDERR,  "C:".$dir."/".$file."\n");
+                }
              echo file_get_contents("cache/".md5_file($dir."/".$file).".cache");
              continue;
             }
+                if(gettype(STDERR)=="resource"){
             fwrite(STDERR, "N:".$dir."/".$file."\n");
+                }
             
             /* GPX parser */
             $xml=simplexml_load_string(file_get_contents($dir."/".$file)) or die("Error: Cannot create object");
@@ -94,8 +98,10 @@ if (is_dir($dir)) {
              for($i=1;$i<count($xml->trk->trkseg->trkpt)-1;$i++){
                  
                  if($i%100==0){
-                  fwrite(STDERR, $i."/".(count($xml->trk->trkseg->trkpt)-1)."\n");
-                  fflush(STDERR);                 
+                  if(gettype(STDERR)=="resource"){
+                   fwrite(STDERR, $i."/".(count($xml->trk->trkseg->trkpt)-1)."\n");
+                   fflush(STDERR);          
+                  }
                  }
                  
               // print_r($xml->trk->trkseg->trkpt[$i]);
